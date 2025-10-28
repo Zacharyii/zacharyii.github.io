@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>币界网群聊发言检测器</title>
+  <title>bjw群聊发言检测器</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; font-family: "Microsoft YaHei", sans-serif; }
     body { background: #f4f6f9; padding: 20px; }
@@ -21,18 +21,48 @@
     .danger { background: #ffe6e6; color: #d32f2f; border: 1px solid #d32f2f; }
     .tips { font-size: 12px; color: #888; margin-top: 10px; text-align: center; }
     .highlight { background: #ffeb3b; color: #333; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+
+    /* 新增：联系方式卡片 */
+    .contact-card {
+      margin: 20px;
+      padding: 16px;
+      background: #f9f9ff;
+      border-radius: 12px;
+      border: 1px solid #e0e0ff;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .contact-card h3 {
+      margin-bottom: 8px;
+      color: #4e6bff;
+      font-size: 1.1em;
+    }
+    .contact-card a {
+      color: #4e6bff;
+      text-decoration: none;
+    }
+    .contact-card a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <div class="header">币界网群聊发言检测器</div>
+  <div class="header">bjw群聊发言检测器</div>
   <div class="input-area">
     <textarea id="message" placeholder="粘贴你要发送的消息..."></textarea>
     <button class="btn" onclick="check()">立即检测</button>
     <button class="btn paste" onclick="pasteFromClipboard()">从剪贴板粘贴并检测</button>
     <div id="result"></div>
-    <div class="tips">支持检测 142+ 违禁词（含 vx、策 略、项.目 等绕过写法）</div>
+    <div class="tips">支持检测 140+ 违禁词（含 vx、策 略、项.目 等绕过写法）</div>
+
+    <!-- ==================== 个人联系方式 ==================== -->
+
+      <p style="font-size:12px;color:#666;">
+        开发者：椰汁
+      </p>
+
+    <!-- =========================================================== -->
+
   </div>
 </div>
 
@@ -52,7 +82,6 @@ const BANNED = [
 
   // ┌─ 3. 投资收益类 (12个) → 已去重
   "保底收益", "众筹", "投资回报", "快速回报", "升值", "收益率", "无风险",
-  // 零成本、0成本、零撸、高收益回报 已在前文出现，自动去重
 
   // ┌─ 4. 联系与社交类 (32个) → 含大小写变体
   "china", "Chinese", "QQ", "QQ群", "qq", "V", "VV", "VX", "vx",
@@ -63,11 +92,8 @@ const BANNED = [
 
   // ┌─ 5. 钱包与Token类 (21个) → 大小写全变体 + 合并写法
   "imtoken", "imkey", "imgf", "im钱包", "token", "钱包",
-  // imtoken 全变体
   "IMTOKEN", "IMToken", "IMTOKen", "IMtoken",
-  // im 变体
   "Im", "im", "iM", "IM",
-  // token 变体
   "TOKEN", "TOKEn", "Token", "TOken",
 
   // ┌─ 6. 项目名称类 (15个) → PiNetwork 变体
@@ -80,9 +106,7 @@ const BANNED = [
   "布林带", "回调", "反弹", "支撑", "止损", "分析", "进场",
   "杠杆", "走势", "出局", "震荡", "盘", "企稳", "破位", "回撤",
   "追空", "逆势", "点位", "锁单",
-  // 策略绕过写法
   "策略&略&q", "策略&略&Q", "策略&略&微",
-  // 模糊空格写法（自动在下方正则处理）
   "策\\s*略", "策\\s*略\\s*Q", "策\\s*略\\s*q", "策\\s*略\\s*群",
 
   // ┌─ 8. 其他杂类 (20个)
@@ -96,8 +120,8 @@ const BANNED = [
 // 编译正则：支持 \s 模糊匹配（如 "策 略" → \s*）
 const patterns = BANNED.map(word => {
   let escaped = word
-    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')   // 转义正则特殊字符
-    .replace(/\\\\s/g, '\\s*');               // \\s → \s*（支持任意空格）
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\\\\s/g, '\\s*');
   return new RegExp(escaped, 'gi');
 });
 
@@ -116,11 +140,11 @@ function check() {
   patterns.forEach(pattern => {
     const matches = lowerMsg.matchAll(pattern);
     for (const m of matches) {
-      found.add(m[0]);  // 去重
+      found.add(m[0]);
     }
   });
 
-  const uniqueFound = Array.from(found).sort();  // 排序便于查看
+  const uniqueFound = Array.from(found).sort();
 
   if (uniqueFound.length === 0) {
     resultDiv.innerHTML = '<div class="result safe">安全！可以发送</div>';
@@ -133,14 +157,12 @@ function check() {
   }
 }
 
-// 安全转义 HTML，防止 XSS
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
 }
 
-// 从剪贴板粘贴（需用户交互触发）
 function pasteFromClipboard() {
   if (!navigator.clipboard) {
     alert('你的浏览器不支持剪贴板功能，请手动粘贴');
@@ -162,7 +184,7 @@ function pasteFromClipboard() {
     });
 }
 
-// 可选：Enter + Ctrl 快捷检测
+// Ctrl+Enter 快捷检测
 document.getElementById('message').addEventListener('keydown', e => {
   if (e.ctrlKey && e.key === 'Enter') {
     check();
