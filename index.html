@@ -5,23 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>bjw群聊发言检测器</title>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; font-family: "Microsoft YaHei", sans-serif; }
-    body { background: #f4f6f9; padding: 20px; }
-    .container { max-width: 600px; margin: auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
-    .header { background: #4e6bff; color: white; padding: 20px; text-align: center; font-size: 1.3em; }
-    .input-area { padding: 20px; }
-    textarea { width: 100%; height: 120px; padding: 12px; border: 2px solid #ddd; border-radius: 12px; font-size: 16px; resize: none; }
-    textarea:focus { border-color: #4e6bff; outline: none; }
-    .btn { margin-top: 15px; width: 100%; padding: 14px; background: #4e6bff; color: white; border: none; border-radius: 12px; font-size: 18px; cursor: pointer; }
-    .btn:hover { background: #3a56d4; }
-    .btn.paste { background: #28a745; margin-top: 8px; }
-    .btn.paste:hover { background: #218838; }
-    .result { margin-top: 15px; padding: 15px; border-radius: 12px; font-weight: bold; text-align: center; line-height: 1.6; }
-    .safe { background: #e6f7ee; color: #0aa95a; border: 1px solid #0aa95a; }
-    .danger { background: #ffe6e6; color: #d32f2f; border: 1px solid #d32f2f; }
-    .tips { font-size: 12px; color: #888; margin-top: 10px; text-align: center; }
-    .highlight { background: #ffeb3b; color: #333; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-    .stats { font-size: 11px; color: #666; margin-top: 8px; }
+    /* 这里的 CSS 与原来完全相同，省略以节省篇幅 */
+    *{margin:0;padding:0;box-sizing:border-box;font-family:"Microsoft YaHei",sans-serif}
+    body{background:#f4f6f9;padding:20px}
+    .container{max-width:600px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.1)}
+    .header{background:#4e6bff;color:#fff;padding:20px;text-align:center;font-size:1.3em}
+    .input-area{padding:20px}
+    textarea{width:100%;height:120px;padding:12px;border:2px solid #ddd;border-radius:12px;font-size:16px;resize:none}
+    textarea:focus{border-color:#4e6bff;outline:none}
+    .btn{margin-top:15px;width:100%;padding:14px;background:#4e6bff;color:#fff;border:none;border-radius:12px;font-size:18px;cursor:pointer}
+    .btn:hover{background:#3a56d4}
+    .btn.paste{background:#28a745;margin-top:8px}
+    .btn.paste:hover{background:#218838}
+    .result{margin-top:15px;padding:15px;border-radius:12px;font-weight:bold;text-align:center;line-height:1.6}
+    .safe{background:#e6f7ee;color:#0aa95a;border:1px solid #0aa95a}
+    .danger{background:#ffe6e6;color:#d32f2f;border:1px solid #d32f2f}
+    .tips{font-size:12px;color:#888;margin-top:10px;text-align:center}
+    .highlight{background:#ffeb3b;color:#333;padding:2px 6px;border-radius:4px;font-weight:bold}
+    .stats{font-size:11px;color:#666;margin-top:8px}
   </style>
 </head>
 <body>
@@ -36,173 +37,73 @@
     <div class="tips">
       自动拦截 <span class="highlight">1500+</span> 种违禁词绕过写法（如 策 略、项 目、微 信、T G）
     </div>
-    <div class="stats" id="stats"></div>
+    <div class="stats" id="stats">加载中…</div>
     <p style="font-size:12px;color:#666;margin-top:15px;">开发者：椰汁</p>
   </div>
 </div>
 
+<!-- 1. 先加载违禁词库 -->
+<script src="banned.js"></script>
+
 <script>
-// === 基础违禁词库（精简版，只写“标准词”）===
-const BASE_BANNED = [
-  // 项目赚钱
-  "0成本","0撸","chainless","高利期","高收益回报","日赚","上车红利","无链","副业",
-  "项目","零撸",
+  // ---------- 检测入口 ----------
+  function check() {
+    const msg = document.getElementById('message').value.trim();
+    const resultDiv = document.getElementById('result');
 
-  // 银行
-  "农业银行","渤海银行","广发银行","工商银行","建设银行","恒丰银行","华夏银行","交通银行",
-  "银行","民生银行","浦发银行","平安银行","兴业银行","招商银行","央行","中信银行",
-  "中国光大银行","中国邮政储蓄银行","浙商银行",
-
-  // 投资
-  "保底收益","众筹","投资回报","快速回报","升值","收益率","无风险",
-
-  // 联系方式
-  "QQ","QQ群","qq","V","VV","VX","vx","钉钉","钉钉群号","电报","推广",
-  "TG","TG群","tg","tg群","WXN","微信","微信群","微博","邀请码","邀请好友",
-  "扫码","二维码","联系方式","推荐码","球球","导师","链接","http","https",
-
-  // 钱包
-  "imtoken","imkey","imgf","im钱包","token","钱包","IMTOKEN","IMToken","Token",
-
-  // 项目名
-  "76640050675","1602018606","iwff1788","VV币","中本聪oex空投","公主号","沃克短视频",
-  "英国项目GEE","国外短视频gee","PiNetwork","PINetwork","PI网络",
-
-  // 交易策略
-  "KDJ","MACD","交易","趋势","策略","策略Q","策略q","策略群","布林带","回调",
-  "反弹","支撑","止损","分析","进场","杠杆","走势","出局","震荡","盘",
-  "企稳","破位","回撤","追空","逆势","点位","锁单","实盘策略","策略跟单",
-  "实盘上车","实时指导","实盘指导",
-
-  // 其他
-  "出U","出u","出油","收U","收u","收油","返佣","交易所","免费挖","百倍币",
-  "空投","首码","合约带单","带单师","指导师","指导老师","VIP","直营",
-  "张政委","石盘","磐面","哆","箜"
-];
-
-// === 自动生成绕过变体（每词生成 10+ 变体）===
-function generateVariants(word) {
-  const variants = new Set([word]);
-
-  // 1. 插入空格
-  for (let i = 1; i < word.length; i++) {
-    variants.add(word.slice(0, i) + ' ' + word.slice(i));
-    variants.add(word.slice(0, i) + '  ' + word.slice(i));
-  }
-
-  // 2. 插入点、横线、下划线
-  ['.', '-', '_'].forEach(sep => {
-    for (let i = 1; i < word.length; i++) {
-      variants.add(word.slice(0, i) + sep + word.slice(i));
+    if (!msg) {
+      resultDiv.innerHTML = '<div class="result danger">请输入内容！</div>';
+      return;
     }
-  });
 
-  // 3. 大小写混合
-  if (/[a-zA-Z]/.test(word)) {
-    const upper = word.toUpperCase();
-    const lower = word.toLowerCase();
-    if (upper !== word) variants.add(upper);
-    if (lower !== word) variants.add(lower);
-  }
-
-  // 4. 重复字母（如 VVX, TGG）
-  if (word.length <= 3) {
-    variants.add(word + word.slice(-1));
-  }
-
-  // 5. 零宽字符（防肉眼识别）
-  variants.add(word.split('').join('\u200B')); // zero-width space
-  variants.add(word.split('').join('\u2060')); // word joiner
-
-  return Array.from(variants);
-}
-
-// === 构建完整正则库 ===
-let ALL_PATTERNS = [];
-let TOTAL_VARIANTS = 0;
-
-BASE_BANNED.forEach(base => {
-  const vars = generateVariants(base);
-  TOTAL_VARIANTS += vars.length;
-  vars.forEach(v => {
-    try {
-      const escaped = v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      ALL_PATTERNS.push(new RegExp(escaped, 'gi'));
-    } catch (e) {
-      console.warn('正则生成失败:', v);
-    }
-  });
-});
-
-document.getElementById('stats').textContent = `已加载 ${ALL_PATTERNS.length} 条防绕过规则（约 ${TOTAL_VARIANTS} 变体）`;
-
-// === 检测函数 ===
-function check() {
-  const msg = document.getElementById('message').value.trim();
-  const resultDiv = document.getElementById('result');
-  
-  if (!msg) {
-    resultDiv.innerHTML = '<div class="result danger">请输入内容！</div>';
-    return;
-  }
-
-  const lowerMsg = msg.toLowerCase();
-  const found = new Set();
-
-  ALL_PATTERNS.forEach(pattern => {
-    const matches = lowerMsg.matchAll(pattern);
-    for (const m of matches) {
-      const clean = m[0].replace(/\s+/g, ' ').replace(/[\u200B\u2060]/g, '').trim();
-      if (clean) found.add(clean);
-    }
-  });
-
-  const uniqueFound = Array.from(found).sort();
-
-  if (uniqueFound.length === 0) {
-    resultDiv.innerHTML = '<div class="result safe">安全！可以发送</div>';
-  } else {
-    const highlighted = uniqueFound.slice(0, 20).map(w => `<span class="highlight">${escapeHtml(w)}</span>`).join(' | ');
-    const more = uniqueFound.length > 20 ? ` 等 ${uniqueFound.length} 项` : '';
-    resultDiv.innerHTML = `
-      <div class="result danger">
-        检测到 ${uniqueFound.length} 个违禁词：<br>${highlighted}${more}
-      </div>`;
-  }
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-function pasteFromClipboard() {
-  if (!navigator.clipboard) {
-    alert('你的浏览器不支持剪贴板功能，请手动粘贴');
-    return;
-  }
-
-  navigator.clipboard.readText()
-    .then(text => {
-      if (text && text.trim()) {
-        document.getElementById('message').value = text.trim();
-        check();
+    // 调用外部库
+    window.checkBanned(msg, ({found}) => {
+      if (found.length === 0) {
+        resultDiv.innerHTML = '<div class="result safe">安全！可以发送</div>';
       } else {
-        alert('剪贴板为空或无有效内容');
+        const highlighted = found.slice(0, 20)
+          .map(w => `<span class="highlight">${escapeHtml(w)}</span>`)
+          .join(' | ');
+        const more = found.length > 20 ? ` 等 ${found.length} 项` : '';
+        resultDiv.innerHTML = `
+          <div class="result danger">
+            检测到 ${found.length} 个违禁词：<br>${highlighted}${more}
+          </div>`;
       }
-    })
-    .catch(err => {
-      alert('无法读取剪贴板（需 HTTPS 或用户交互）\n请手动粘贴内容');
     });
-}
+  }
 
-// Ctrl+Enter
-document.getElementById('message').addEventListener('keydown', e => {
-  if (e.ctrlKey && e.key === 'Enter') check();
-});
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // ---------- 剪贴板 ----------
+  function pasteFromClipboard() {
+    if (!navigator.clipboard) {
+      alert('你的浏览器不支持剪贴板功能，请手动粘贴');
+      return;
+    }
+    navigator.clipboard.readText()
+      .then(text => {
+        if (text && text.trim()) {
+          document.getElementById('message').value = text.trim();
+          check();
+        } else {
+          alert('剪贴板为空或无有效内容');
+        }
+      })
+      .catch(() => {
+        alert('无法读取剪贴板（需 HTTPS 或用户交互）\n请手动粘贴内容');
+      });
+  }
+
+  // Ctrl+Enter 快捷键
+  document.getElementById('message').addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'Enter') check();
+  });
 </script>
 
 </body>
 </html>
-
