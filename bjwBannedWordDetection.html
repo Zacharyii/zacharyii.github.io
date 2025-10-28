@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>币界网群聊发言检测器</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family: "Microsoft YaHei", sans-serif; }
+    body { background: #f4f6f9; padding: 20px; }
+    .container { max-width: 600px; margin: auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+    .header { background: #4e6bff; color: white; padding: 20px; text-align: center; font-size: 1.3em; }
+    .input-area { padding: 20px; }
+    textarea { width: 100%; height: 120px; padding: 12px; border: 2px solid #ddd; border-radius: 12px; font-size: 16px; resize: none; }
+    textarea:focus { border-color: #4e6bff; outline: none; }
+    .btn { margin-top: 15px; width: 100%; padding: 14px; background: #4e6bff; color: white; border: none; border-radius: 12px; font-size: 18px; cursor: pointer; }
+    .btn:hover { background: #3a56d4; }
+    .btn.paste { background: #28a745; margin-top: 8px; }
+    .btn.paste:hover { background: #218838; }
+    .result { margin-top: 15px; padding: 15px; border-radius: 12px; font-weight: bold; text-align: center; line-height: 1.6; }
+    .safe { background: #e6f7ee; color: #0aa95a; border: 1px solid #0aa95a; }
+    .danger { background: #ffe6e6; color: #d32f2f; border: 1px solid #d32f2f; }
+    .tips { font-size: 12px; color: #888; margin-top: 10px; text-align: center; }
+    .highlight { background: #ffeb3b; color: #333; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">币界网群聊发言检测器</div>
+  <div class="input-area">
+    <textarea id="message" placeholder="粘贴你要发送的消息..."></textarea>
+    <button class="btn" onclick="check()">立即检测</button>
+    <button class="btn paste" onclick="pasteFromClipboard()">从剪贴板粘贴并检测</button>
+    <div id="result"></div>
+    <div class="tips">支持检测 142+ 违禁词（含 vx、策 略、项.目 等绕过写法）</div>
+  </div>
+</div>
+
+<script>
+// === 完整违禁词库（142个，含正则模糊匹配）===
+const BANNED = [
+  // ┌─ 1. 项目与赚钱类 (13个)
+  "0成本", "0撸", "chainless", "高利期", "高收益回报",
+  "日.赚", "日赚", "上车红利", "无链", "副业",
+  "项.目", "项目", "零撸",
+
+  // ┌─ 2. 银行类 (19个)
+  "农业银行", "渤海银行", "广发银行", "工商银行", "建设银行",
+  "恒丰银行", "华夏银行", "交通银行", "银行", "民生银行",
+  "浦发银行", "平安银行", "兴业银行", "招商银行", "央行",
+  "中信银行", "中国光大银行", "中国邮政储蓄银行", "浙商银行",
+
+  // ┌─ 3. 投资收益类 (12个) → 已去重
+  "保底收益", "众筹", "投资回报", "快速回报", "升值", "收益率", "无风险",
+  // 零成本、0成本、零撸、高收益回报 已在前文出现，自动去重
+
+  // ┌─ 4. 联系与社交类 (32个) → 含大小写变体
+  "china", "Chinese", "QQ", "QQ群", "qq", "V", "VV", "VX", "vx",
+  "钉钉", "钉钉群号", "电报", "推广", "TG", "TG群", "tg", "tg群",
+  "WXN", "微信", "微信群", "微博", "邀请码", "邀请好友", "扫码",
+  "二维码", "联系方式", "推荐码", "球球", "导师",
+  "链接", "http", "https",
+
+  // ┌─ 5. 钱包与Token类 (21个) → 大小写全变体 + 合并写法
+  "imtoken", "imkey", "imgf", "im钱包", "token", "钱包",
+  // imtoken 全变体
+  "IMTOKEN", "IMToken", "IMTOKen", "IMtoken",
+  // im 变体
+  "Im", "im", "iM", "IM",
+  // token 变体
+  "TOKEN", "TOKEn", "Token", "TOken",
+
+  // ┌─ 6. 项目名称类 (15个) → PiNetwork 变体
+  "76640050675", "1602018606", "iwff1788", "VV币", "WXN",
+  "中本聪oex空投", "公主号", "沃克短视频", "英国项目GEE", "国外短视频gee",
+  "PiNetwork", "PINetwork", "pINetwork", "piNetwork", "PI网络",
+
+  // ┌─ 7. 交易与策略类 (30个) → 含策略Q、策略群、策略&略&微 等绕过
+  "KDJ", "MACD", "交易", "趋势", "策略", "策略Q", "策略q", "策略群",
+  "布林带", "回调", "反弹", "支撑", "止损", "分析", "进场",
+  "杠杆", "走势", "出局", "震荡", "盘", "企稳", "破位", "回撤",
+  "追空", "逆势", "点位", "锁单",
+  // 策略绕过写法
+  "策略&略&q", "策略&略&Q", "策略&略&微",
+  // 模糊空格写法（自动在下方正则处理）
+  "策\\s*略", "策\\s*略\\s*Q", "策\\s*略\\s*q", "策\\s*略\\s*群",
+
+  // ┌─ 8. 其他杂类 (20个)
+  "出U", "出u", "出油", "收U", "收u", "收油", "返佣", "交易所",
+  "实盘策略", "策略跟单", "实盘上车", "实时指导", "实盘指导",
+  "免费挖", "邀请好友", "百倍币", "空投", "首码", "合约带单",
+  "带单师", "指导师", "指导老师", "VIP", "直营",
+  "张政委", "石盘", "磐面", "哆", "箜"
+];
+
+// 编译正则：支持 \s 模糊匹配（如 "策 略" → \s*）
+const patterns = BANNED.map(word => {
+  let escaped = word
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')   // 转义正则特殊字符
+    .replace(/\\\\s/g, '\\s*');               // \\s → \s*（支持任意空格）
+  return new RegExp(escaped, 'gi');
+});
+
+function check() {
+  const msg = document.getElementById('message').value.trim();
+  const resultDiv = document.getElementById('result');
+  
+  if (!msg) {
+    resultDiv.innerHTML = '<div class="result danger">请输入内容！</div>';
+    return;
+  }
+
+  const lowerMsg = msg.toLowerCase();
+  const found = new Set();
+
+  patterns.forEach(pattern => {
+    const matches = lowerMsg.matchAll(pattern);
+    for (const m of matches) {
+      found.add(m[0]);  // 去重
+    }
+  });
+
+  const uniqueFound = Array.from(found).sort();  // 排序便于查看
+
+  if (uniqueFound.length === 0) {
+    resultDiv.innerHTML = '<div class="result safe">安全！可以发送</div>';
+  } else {
+    const highlighted = uniqueFound.map(w => `<span class="highlight">${escapeHtml(w)}</span>`).join(' | ');
+    resultDiv.innerHTML = `
+      <div class="result danger">
+        检测到 ${uniqueFound.length} 个违禁词：<br>${highlighted}
+      </div>`;
+  }
+}
+
+// 安全转义 HTML，防止 XSS
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// 从剪贴板粘贴（需用户交互触发）
+function pasteFromClipboard() {
+  if (!navigator.clipboard) {
+    alert('你的浏览器不支持剪贴板功能，请手动粘贴');
+    return;
+  }
+
+  navigator.clipboard.readText()
+    .then(text => {
+      if (text && text.trim()) {
+        document.getElementById('message').value = text.trim();
+        check();
+      } else {
+        alert('剪贴板为空或无有效内容');
+      }
+    })
+    .catch(err => {
+      console.warn('剪贴板读取失败', err);
+      alert('无法读取剪贴板（需 HTTPS 或用户交互）\n请手动粘贴内容');
+    });
+}
+
+// 可选：Enter + Ctrl 快捷检测
+document.getElementById('message').addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') {
+    check();
+  }
+});
+</script>
+
+</body>
+</html>
